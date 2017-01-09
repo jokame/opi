@@ -1,0 +1,287 @@
+---
+title: "Examen OPI"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Sección 1
+
+Utilizando la tasa de natalidad de cada año podríamos encontrar una aproximación a la cantidad de bebés que existen al día de hoy con una edad de 0 a 6 meses.
+
+Al estar buscando esa tasa de natalidad, se encontraron las aproximaciones de los índices y datos demográficos para los años del 2010 al 2030.
+
+Estos datos demográficos incluyen la información relacionada a la cantidad de población al inicio y a mediados del año, además de que viene separada por sexo y edad.
+
+Si estamos interesados en la estimación de cantidad de bebés de 0 a 6 meses al día de hoy, podemos considerar la estimación de la población a inicio del 2017 de edad 0. Eso implica que son niños nacidos de enero de 2016 a diciembre de 2016. 
+
+```{r}
+pobInicio2017 <- 62809 + 59954
+```
+
+Siendo un total de 122,763 niños y niñas de edad de 0 años.
+
+De la información del 2015, tenemos que en la CDMX hubo un total de 137,249 nacimientos distribuidos de la siguiente forma:
+```{r echo = F}
+meses <- c(1,2,3,4,5,6,
+           7,8,9,10,11,12)
+
+nacMeses <- c(12325, 11297, 12006, 11716, 10556, 11251,
+              11798, 11529, 11162, 12202, 11093, 10314)
+
+dfNac <- data.frame(meses, nacMeses)
+
+plot(dfNac, type="l")
+```
+
+Supongamos que la proporción de nacimientos en el 2016 es similar al comportamiento ocurrido en el 2015. Es decir, los porcentajes de nacimientos por mes son similares. Estos porcentajes son:
+
+```{r echo=F}
+nacNorm <- nacMeses / (sum(nacMeses))
+print(nacNorm)
+```
+Por lo tanto, si queremos conocer la cantidad de bebés de 0 a 6 meses a inicios del 2017 se tendría que observar la cantidad de bebés nacidos de julio a diciembre.
+
+```{r echo=F}
+porcJulDic <- nacNorm[7:12]
+print("Porcentajes de julio a diciembre:")
+print(porcJulDic)
+
+pob06meses <- pobInicio2017 * porcJulDic
+print("Poblacion distribuida por meses")
+print(pob06meses)
+
+
+pobTotal06meses <- sum(pob06meses)
+print("Poblacion de 0 a 6 meses")
+print(pobTotal06meses)
+```
+
+Así, la cantidad de bebés en CDMX de 0 a 6 meses es aproximadamente de 60,910.
+Para obtener el total de bebés en la delegación Álvaro Obregón supongamos que la proporción de nacimientos es similar en el año 2015 y 2016, además de que estaremos suponiendo que los bebés nacidos en una delegación se quedan a vivir en la misma delegación al menos por 6 meses.
+
+```{r echo=F}
+nacDelegacion2015 <- c(6020, 7532, 3646, 17401, 5821, 22755, 
+                       3373, 2579, 10754, 6044, 9815, 5497, 
+                       5487, 13045, 10460, 7020)
+nacDel2015norm <- nacDelegacion2015/sum(nacDelegacion2015)
+print("Porcentajes por delegacion en 2015")
+print(nacDel2015norm)
+
+print("Porcentaje de la delegacion Alvaro Obregon")
+print(nacDel2015norm[9])
+
+bebesAO <- pobTotal06meses*nacDel2015norm[9]
+print("Cantidad de bebes de 0 a 6 meses en AO")
+print(bebesAO)
+```
+
+Luego, actualmente existe un aproximado de 4772 bebés de 0 a 6 meses de edad en la delegación Álvaro Obregón.
+
+**Fuentes**
+
+http://www.inegi.org.mx/lib/olap/consulta/general_ver4/MDXQueryDatos.asp?#Regreso&c=23699
+http://www.conapo.gob.mx/es/CONAPO/Proyecciones_Datos
+
+
+## Sección 2 (ecobici)
+
+**1**
+
+Definamos la afluencia como la cantidad de observacionses que existan en los registros de los tres meses. Esto es, a mayor cantidad de observaciones de una estación, significa que la afluencia en esa estación es mayor. Así, las 10 estaciones con mayor afluencia son
+
+```{r message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+library("tidyverse", quietly = T,warn.conflicts = F, verbose = F)
+
+dfDic <- read.csv("ecoDic2016.csv")
+dfNov <- read.csv("ecoNov2016.csv", header = F)
+dfOct <- read.csv("ecoOct2016.csv")
+colnames(dfNov) <- colnames(dfDic)
+dfEcobici <- rbind(dfDic, dfNov, dfOct)
+
+retiros <- aggregate(dfEcobici$Ciclo_Estacion_Retiro,
+            by=list(dfEcobici$Ciclo_Estacion_Retiro),
+            FUN=length)
+arribos <- aggregate(dfEcobici$Ciclo_Estacion_Arribo,
+                     by=list(dfEcobici$Ciclo_Estacion_Arribo),
+                     FUN=length)
+colnames(retiros) <- c("estacion", "movimientos")
+colnames(arribos) <- c("estacion", "movimientos")
+
+movs <- left_join(retiros, arribos, by="estacion")
+colnames(movs) <- c("estacion", "retiros", "arribos")
+movs$afluencia <- movs$retiros+movs$arribos
+
+top10 <- movs%>%
+  arrange(desc(afluencia)) %>%
+  top_n(10)
+
+print(top10)
+```
+
+Si a partir de estas 10 estaciones más frecuentes calculamos un histograma sobre las horas de retiro de una bicicleta, y un histograma sobre las horas de arribo de una bicileta, los horarios más comunes están al rededor de las 10 de la mañana y el medio día, y cercano a las 8 de la noche.
+
+```{r message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+estacionesTOP <- dfEcobici %>%
+  filter(Ciclo_Estacion_Retiro %in% top10$estacion)
+
+estacionesTOP$Hora_Retiro_int <- parse_time(estacionesTOP$Hora_Retiro)
+estacionesTOP$Hora_Arribo_int <- parse_time(estacionesTOP$Hora_Arribo)
+
+ggplot(data=estacionesTOP, aes(Hora_Retiro_int)) +
+  geom_histogram(bins=24) +
+  labs(title="Histogramas de retiro") +
+  labs(x="Hora", y="Frecuencia")
+
+ggplot(data=estacionesTOP, aes(Hora_Arribo_int)) +
+  geom_histogram(bins=24) +
+  labs(title="Histogramas de arribo") +
+  labs(x="Hora", y="Frecuencia")
+
+ggplot(data=estacionesTOP, aes(Hora_Retiro_int)) +
+  geom_histogram(bins=24) +
+  facet_wrap(~Ciclo_Estacion_Retiro) +
+  labs(title="Histogramas de retiro por estacion") +
+  labs(x="Hora", y="Frecuencia")
+
+ggplot(data=estacionesTOP, aes(Hora_Arribo_int)) +
+  geom_histogram(bins=24) +
+  facet_wrap(~Ciclo_Estacion_Retiro) +
+  labs(title="Histogramas de arribo por estacion") +
+  labs(x="Hora", y="Frecuencia")
+```
+
+Las horas de mayor frecuencia de uso coincide con las horas de entrada y salida de las oficinas, que son además las zonas donde usualmente están ubicadas las estaciones de ecobici.
+
+**2a** 
+
+Se puede observar una tendencia al alta en 5 estaciones. Estas estaciones cumplen con el criterio de que el uso en diciembre resultó mayor que en noviembre, y que en noviembre fue mayor que en octubre.
+
+```{r message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+retirosDic <- aggregate(dfDic$Ciclo_Estacion_Retiro,
+                     by=list(dfDic$Ciclo_Estacion_Retiro),
+                     FUN=length)
+retirosNov <- aggregate(dfNov$Ciclo_Estacion_Retiro,
+                        by=list(dfNov$Ciclo_Estacion_Retiro),
+                        FUN=length)
+retirosOct <- aggregate(dfOct$Ciclo_Estacion_Retiro,
+                        by=list(dfOct$Ciclo_Estacion_Retiro),
+                        FUN=length)
+
+arribosDic <- aggregate(dfDic$Ciclo_Estacion_Arribo,
+                     by=list(dfDic$Ciclo_Estacion_Arribo),
+                     FUN=length)
+arribosNov <- aggregate(dfNov$Ciclo_Estacion_Arribo,
+                        by=list(dfNov$Ciclo_Estacion_Arribo),
+                        FUN=length)
+arribosOct <- aggregate(dfOct$Ciclo_Estacion_Arribo,
+                        by=list(dfOct$Ciclo_Estacion_Arribo),
+                        FUN=length)
+movsDic <- full_join(retirosDic, arribosDic, by="Group.1")
+movsNov <- full_join(retirosNov, arribosNov, by="Group.1")
+movsOct <- full_join(retirosOct, arribosOct, by="Group.1")
+
+colnames(movsDic) <- c("estacion", "retiro", "arribo")
+colnames(movsNov) <- c("estacion", "retiro", "arribo")
+colnames(movsOct) <- c("estacion", "retiro", "arribo")
+
+movsDic$total <- movsDic$retiro+movsDic$arribo
+movsNov$total <- movsNov$retiro+movsNov$arribo
+movsOct$total <- movsOct$retiro+movsOct$arribo
+
+movsMeses <- full_join(
+  full_join(
+    data.frame(estacion=movsDic$estacion, total=movsDic$total), 
+    data.frame(estacion=movsNov$estacion, total=movsNov$total),
+    by="estacion"),
+  data.frame(estacion=movsOct$estacion, total=movsOct$total),
+  by="estacion")
+
+colnames(movsMeses) <- c("estacion", "dic", "nov", "oct")
+
+movsMeses %>%
+  filter(dic > nov & nov > oct)
+```
+
+
+**2b**
+
+La categorización de las estaciones siempre se puede hacer. Luego es importante verificar que la categorización sea útil, pero siempre se puede establecer alguna. En este caso, para las tendencias de uso, siemplemente se podrían categorizar como "en aumento", "en decrimento" o en "uso constante"; realmente no hay muchas opciones o combinaciones para posibles respuestas o clasificaciones en función de las tendencias de uso de las estaciones de ecobici.
+
+**2c**
+
+La gráfica de las tendencias de uso para las estaciones que van al alta
+```{r message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+totalMeses <- rbind(data.frame(estacion=movsMeses$estacion, mes="12", total=movsMeses$dic),
+  data.frame(estacion=movsMeses$estacion, mes="11", total=movsMeses$nov),
+  data.frame(estacion=movsMeses$estacion, mes="10", total=movsMeses$oct))
+
+
+alta <- movsMeses %>%
+  filter(dic > nov & nov > oct)
+
+baja <- movsMeses %>%
+  filter(dic < nov & nov < oct)
+
+ggplot(data= filter(totalMeses, estacion %in% alta$estacion),
+       aes(estacion, total)) +
+         geom_bar(aes(fill=mes), position = "dodge", stat="identity")
+
+ggplot(data= filter(totalMeses, estacion %in% baja$estacion),
+       aes(estacion, total)) +
+  geom_bar(aes(fill=mes), position = "stack", stat="identity")
+
+```
+
+**4**
+
+El método de aprendizaje no supervisado que se utilizó para esta parte del examen es "Self Organizing Maps", o también conocida como "Mapeos de Kohonen". Decidí utilizarlos porque es lo que en gral. me ha dado buenos resultados, y técnicamente la ventaja que ofrecen es la conservación de la topología del espacio original, es decir, el resultado del mapeo mantiene la cercanía entre elementos que en el espacio original estaban cercanos.
+
+El objetivo "principal" de estos mapeos es representar la información de "alta dimensión" en una dimensionalidad menor, preferentemente en un espacio de dos dimensiones.
+
+La aplicación de SOM a los datos de las estaciones en función de las entradas y las salidas ofrece los siguientes resultados.
+
+```{r message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+library(kohonen)
+entrena <- data.frame(retiros=movs$retiros, arribos=movs$arribos)
+entrenaKohonen <- as.matrix(scale(entrena))
+set.seed(3)
+som_grid <- somgrid(xdim = 10, ydim=10, topo="hexagonal")
+som_model <- som(entrenaKohonen, 
+                 grid=som_grid, 
+                 rlen=1000, 
+                 alpha=c(0.05,0.01), 
+                 keep.data = TRUE,
+                 n.hood="circular")
+```
+
+La distribución de elementos en la malla calculada:
+
+```{r message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+plot(som_model, type="count")
+```
+
+El mapeo de disimilitud entre elementos del espacio original es el siguiente:
+```{r message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+plot(som_model, type="dist.neighbours")
+```
+
+La distribución de elementos es:
+```{r message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+plot(som_model, type="codes")
+```
+
+Sobre esta distribución podemos hacer 3 grupos para obtener 3 perfiles de uso. Se puede observar en qué consisten estos tres perfiles utilizando esta gráfica: 
+
+```{r message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+som_cluster <- cutree(hclust(dist(som_model$codes)), 3)
+plot(som_model, type="codes", main = "Clusters") 
+add.cluster.boundaries(som_model, som_cluster)
+```
+
+Los perfiles detectados son básicamente: "de uso intenso", "de uso medio", y "de uso bajo". Las proporciones entre las entradas y las salidas se mantienen similares, por lo tanto la diferencia ocurre en la cantidad de viajes y frecuencia de uso del equipo.
+
